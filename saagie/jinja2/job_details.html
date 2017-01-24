@@ -1,0 +1,15 @@
+{% set job_admin_url = 'https://manager.prod.saagie.io/#/manager/2/job/' + id %}
+<dl>
+  <dt>Job admin</dt>
+  <dd>
+    <a href="{{ job_admin_url }}" target="_blank">
+      {{ job_admin_url }}
+    </a>
+  </dd>
+  <dt>Container URL</dt>
+  <dd>
+    <a href="{{ url }}" target="_blank">
+      {{ url }}
+    </a>
+  </dd>
+</dl>

@@ -1,0 +1,5 @@
+Type: Jupyter Notebook Extension
+Name: Saagie
+Icon: saagie.png
+Main: saagie.js
+Compatibility: 4.x

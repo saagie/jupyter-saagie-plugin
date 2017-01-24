@@ -7,7 +7,7 @@ from a local notebook.
 Install
 -------
 
-pip install https://github.com/saagie/jupyter-saagie-plugin/archive/0.1.0.tar.gz
+| ``pip install https://github.com/saagie/jupyter-saagie-plugin/archive/0.1.0.tar.gz``
 
 Usage
 -----
@@ -18,5 +18,5 @@ in the toolbar. Use it to log on your account and deploy the notebook.
 Uninstall
 ---------
 
-pip uninstall jupyter-saagie-plugin
-jupyter nbextension uninstall saagie --user
+| ``pip uninstall jupyter-saagie-plugin``
+| ``jupyter nbextension uninstall saagie --user``

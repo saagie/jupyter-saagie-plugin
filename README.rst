@@ -7,7 +7,7 @@ from a local notebook.
 Install
 -------
 
-| ``pip install https://github.com/saagie/jupyter-saagie-plugin/archive/0.1.0.tar.gz``
+| ``pip install https://github.com/saagie/jupyter-saagie-plugin/archive/0.2.0.tar.gz``
 
 Usage
 -----

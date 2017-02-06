@@ -7,6 +7,10 @@ from notebook.base.handlers import IPythonHandler
 import requests
 
 
+VERSION = (0, 2, 0)
+__version__ = '.'.join(map(str, VERSION))
+
+
 env = Environment(
     loader=PackageLoader('saagie', 'jinja2'),
 )

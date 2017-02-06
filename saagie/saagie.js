@@ -28,7 +28,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       $.extend(updatedData, data);
     }
     return $.ajax({
-      url: '/saagie-proxy',
+      url: '/saagie/proxy',
       method: 'POST',
       data: updatedData,
       async: async,

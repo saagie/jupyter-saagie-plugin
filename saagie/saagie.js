@@ -56,7 +56,6 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       this.$modal = $(html);
       this.initModal();
       $body.append(this.$modal);
-      Jupyter.keyboard_manager.disable();
       this.$modal.on('hidden.bs.modal', function () {
         Jupyter.keyboard_manager.enable();
       });
@@ -75,6 +74,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
   };
 
   Saagie.prototype.openModal = function () {
+    Jupyter.keyboard_manager.disable();
     var cell = Jupyter.notebook.get_selected_cell();
     var data = {};
     if (typeof cell.kernel !== 'undefined') {

@@ -31,10 +31,11 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       method: 'POST',
       data: updatedData,
       async: async,
-      timeout: 10000
+      timeout: 6000
     }).fail(function (xhr) {
       if (xhr.status == 500) {
         this.renderTemplate('connection_error.html');
+        throw 'Unable to connect to Saagie.';
       }
     }.bind(this));
   };
@@ -46,7 +47,8 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
     }
     return $.ajax({
       url: '/saagie',
-      data: updatedData
+      data: updatedData,
+      timeout: 6000
     }).fail(function (xhr) {
       if (xhr.status == 500) {
         alert('Connection issue with the Jupyter server.');
@@ -184,7 +186,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
   };
 
   var load_extension = function () {
-    $.ajax('/saagie/check').done(function () {
+    $.ajax({url: '/saagie/check', timeout: 6000}).done(function () {
       saagie = new Saagie();
     }).error(function () {
       console.error(

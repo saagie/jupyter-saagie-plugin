@@ -56,7 +56,8 @@ class SaagieProxyHandler(IPythonHandler):
             json_data = json.loads(data.pop('json')[0].decode())
         except (KeyError, IndexError, ValueError):
             json_data = None
-        response = session.request(method, url, data=data, json=json_data)
+        response = session.request(method, url, data=data, json=json_data,
+                                   timeout=5)
         if response.status_code != 200:
             self.send_error(response.status_code)
             return

@@ -173,7 +173,13 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
   };
 
   var load_extension = function () {
-    saagie = new Saagie();
+    $.ajax('/saagie/check').done(function () {
+      saagie = new Saagie();
+    }).error(function () {
+      console.error(
+        'Unable to find the saagie Python module, please install ' +
+        'jupyter-saagie-plugin in this Python environment.');
+    });
   };
 
   return {

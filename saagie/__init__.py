@@ -28,6 +28,11 @@ class SaagieHandler(IPythonHandler):
                                      for k, v in data.items()}))
 
 
+class SaagieCheckHandler(IPythonHandler):
+    def get(self):
+        self.finish()
+
+
 CONTAINER_RE = re.compile(r'^https?://[^/]+\.prod\.saagie\.io(?:\Z|/.*)$')
 
 
@@ -63,11 +68,13 @@ class SaagieProxyHandler(IPythonHandler):
 
 def load_jupyter_server_extension(nb_app):
     web_app = nb_app.web_app
+    base_url = web_app.settings['base_url']
 
-    route_pattern = url_path_join(web_app.settings['base_url'],
-                                  '/saagie')
+    route_pattern = url_path_join(base_url, '/saagie/check')
+    web_app.add_handlers('.*$', [(route_pattern, SaagieCheckHandler)])
+
+    route_pattern = url_path_join(base_url, '/saagie')
     web_app.add_handlers('.*$', [(route_pattern, SaagieHandler)])
 
-    route_pattern = url_path_join(web_app.settings['base_url'],
-                                  '/saagie-proxy')
+    route_pattern = url_path_join(base_url, '/saagie-proxy')
     web_app.add_handlers('.*$', [(route_pattern, SaagieProxyHandler)])

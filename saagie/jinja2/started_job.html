@@ -1,2 +1,13 @@
-<p>Job successfully created & started!</p>
-{% include 'job_details.html' %}
+{% extends 'modal_content.html' %}
+
+{% block title %}Ready to use{% endblock %}
+
+{% block body %}
+  <p>Job successfully created & started!</p>
+  <p>It’s now ready to use:</p>
+{% endblock %}
+
+{% block footer %}
+  {% set started = True %}
+  {% include 'include/job_details.html' %}
+{% endblock %}

@@ -14,7 +14,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       haskell: 'haskell',
       'julia-0.3': 'julia'
     };
-    this.currentTimeout = -1;
+    this.alreadyOpened = false;
     this.createModal();
     this.createButtonsGroup();
   }
@@ -59,21 +59,15 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
 
   Saagie.prototype.renderTemplate = function (template, data) {
     this.getTemplate(template, data).done(function (html) {
-      this.$modalBody.html(html);
+      this.$modalContent.html(html);
     }.bind(this));
-  };
-
-  Saagie.prototype.initModal = function () {
-    this.$modalContent = this.$modal.find('.modal-content');
-    this.$modalBody = this.$modalContent.find('.modal-body');
-    this.$modalFooter = this.$modalContent.find('.modal-footer');
   };
 
   Saagie.prototype.createModal = function () {
     this.getTemplate('modal.html').done(function (html) {
       var $body = $('body');
       this.$modal = $(html);
-      this.initModal();
+      this.$modalContent = this.$modal.find('.modal-content');
       $body.append(this.$modal);
       this.$modal.on('hidden.bs.modal', this.onModalClose.bind(this));
     }.bind(this));
@@ -96,11 +90,14 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
 
   Saagie.prototype.onModalClose = function () {
     Jupyter.keyboard_manager.enable();
-    clearTimeout(this.currentTimeout);
   };
 
   Saagie.prototype.openModal = function () {
     this.onModalOpen();
+    if (this.alreadyOpened) {
+      return;
+    }
+    this.alreadyOpened = true;
     if (!this.isLogged()) {
       this.logView();
     } else {
@@ -136,13 +133,11 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
         }.bind(this));
       }.bind(this));
       this.$modalContent.html($form);
-      this.initModal();
     }.bind(this));
   };
 
   Saagie.prototype.createJobView = function () {
     this.renderTemplate('creating_job.html');
-    this.$modalFooter.empty();
     var kernel = Jupyter.notebook.kernel.name;
     if (kernel in this.kernelNames) {
       kernel = this.kernelNames[kernel];
@@ -184,10 +179,10 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
                    {json: JSON.stringify(
                      {content: Jupyter.notebook.toJSON()})})
       .done(function () {
-        this.renderTemplate('job_details.html', templateData);
+        this.renderTemplate('started_job.html', templateData);
       }.bind(this));
     }.bind(this)).fail(function () {
-      this.currentTimeout = setTimeout(function () {
+      setTimeout(function () {
         this.uploadNotebook(id, url);
       }.bind(this), 1000);
     }.bind(this));

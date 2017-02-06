@@ -1,0 +1,14 @@
+{% set job_admin_url = 'https://manager.prod.saagie.io/#/manager/2/job/' + id %}
+
+<a class="btn btn-default" href="{{ job_admin_url }}" target="_blank">
+  <i class="fa fa-cog"></i>
+  Job admin
+</a>
+<a class="btn btn-primary" href="{{ url }}" target="_blank">
+  {% if started %}
+    <i class="fa fa-play"></i>
+  {% else %}
+    <i class="fa fa-spinner fa-spin"></i>
+  {% endif %}
+  Deployed Jupyter notebook
+</a>

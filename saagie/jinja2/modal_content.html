@@ -6,5 +6,7 @@
     <h4 class="modal-title">{% block title %}Deploy to Saagie{% endblock %}</h4>
   </div>
   <div class="modal-body">{% block body %}{% endblock %}</div>
-  <div class="modal-footer">{% block footer %}{% endblock %}</div>
+  {% if self.footer() %}
+    <div class="modal-footer">{% block footer %}{% endblock %}</div>
+  {% endif %}
 </{{ self.content_tag() }}>

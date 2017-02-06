@@ -1,6 +1,13 @@
-<p>Job successfully created!</p>
-<p>
-  <i class="fa fa-spinner fa-spin"></i>
-    Waiting for it to fully start… It takes several minutes.
-</p>
-{% include 'job_details.html' %}
+{% extends 'modal_content.html' %}
+
+{% block title %}Starting job{% endblock %}
+
+{% block body %}
+  <p>Job successfully created!</p>
+  <p>Waiting for it to fully start… It takes several minutes.</p>
+{% endblock %}
+
+{% block footer %}
+  {% set started = False %}
+  {% include 'include/job_details.html' %}
+{% endblock %}

@@ -118,7 +118,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
   };
 
   Saagie.prototype.logView = function () {
-    this.getTemplate('form.html').done(function (html) {
+    this.getTemplate('login_form.html').done(function (html) {
       var $form = $(html);
       var $submitButton = $form.find('button[type="submit"]');
       $form.submit(function (e) {

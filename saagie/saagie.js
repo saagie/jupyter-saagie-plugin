@@ -14,6 +14,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       haskell: 'haskell',
       'julia-0.3': 'julia'
     };
+    this.currentTimeout = -1;
     this.createModal();
     this.createButtonsGroup();
   }
@@ -74,9 +75,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       this.$modal = $(html);
       this.initModal();
       $body.append(this.$modal);
-      this.$modal.on('hidden.bs.modal', function () {
-        Jupyter.keyboard_manager.enable();
-      });
+      this.$modal.on('hidden.bs.modal', this.onModalClose.bind(this));
     }.bind(this));
   };
 
@@ -91,8 +90,17 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
             + '" width="11" height="17" />');
   };
 
-  Saagie.prototype.openModal = function () {
+  Saagie.prototype.onModalOpen = function () {
     Jupyter.keyboard_manager.disable();
+  } ;
+
+  Saagie.prototype.onModalClose = function () {
+    Jupyter.keyboard_manager.enable();
+    clearTimeout(this.currentTimeout);
+  };
+
+  Saagie.prototype.openModal = function () {
+    this.onModalOpen();
     if (!this.isLogged()) {
       this.logView();
     } else {
@@ -179,7 +187,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
         this.renderTemplate('job_details.html', templateData);
       }.bind(this));
     }.bind(this)).fail(function () {
-      setTimeout(function () {
+      this.currentTimeout = setTimeout(function () {
         this.uploadNotebook(id, url);
       }.bind(this), 1000);
     }.bind(this));

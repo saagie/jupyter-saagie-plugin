@@ -15,6 +15,16 @@ Usage
 Simply run ``ipython notebook`` as always, you will see a new button
 in the toolbar. Use it to log on your account and deploy the notebook.
 
+These kernels are currently supported:
+
+- Python 2
+- Python 3
+- R
+- Scala & Spark
+- Ruby
+- Haskell
+- Julia
+
 Uninstall
 ---------
 

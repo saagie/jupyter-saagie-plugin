@@ -4,6 +4,16 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
     this.configUrl = '/api-internal/v1/platform';
     this.loginUrl = '/login_check';
     this.createJobUrl = '/api-internal/v1/platform/2/job';
+    // Binds Jupyter kernel names to Saagie kernel names.
+    this.kernelNames = {
+      python2: 'jupyter',
+      python3: 'jupyter',
+      ir: 'r',
+      spark: 'scala-spark1.6',
+      ruby: 'ruby',
+      haskell: 'haskell',
+      'julia-0.3': 'julia'
+    };
     this.createModal();
     this.createButtonsGroup();
   }
@@ -24,9 +34,9 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       timeout: 10000
     }).fail(function (xhr) {
       if (xhr.status == 500) {
-        alert('Connection issue with the Saagie server.');
+        this.renderTemplate('connection_error.html');
       }
-    });
+    }.bind(this));
   };
 
   Saagie.prototype.getTemplate = function (template, data) {
@@ -42,6 +52,12 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
         alert('Connection issue with the Jupyter server.');
       }
     });
+  };
+
+  Saagie.prototype.renderTemplate = function (template, data) {
+    this.getTemplate(template, data).done(function (html) {
+      this.$modalBody.html(html);
+    }.bind(this));
   };
 
   Saagie.prototype.initModal = function () {
@@ -75,21 +91,6 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
 
   Saagie.prototype.openModal = function () {
     Jupyter.keyboard_manager.disable();
-    var cell = Jupyter.notebook.get_selected_cell();
-    var data = {};
-    if (typeof cell.kernel !== 'undefined') {
-      data['Kernel'] = cell.kernel.name;
-    }
-    data['Cell type'] = cell.cell_type;
-    data['Content'] = $('<pre></pre>').text(cell.get_text());
-
-    var $dl = $('<dl class="dl-horizontal"></dl>');
-    $.each(data, function (key, value) {
-      $dl.append($('<dt></dt>').text(key))
-        .append($('<dd></dd>').html(value));
-    });
-    this.$modalBody.html($dl);
-
     if (!this.isLogged()) {
       this.logView();
     } else {
@@ -130,8 +131,15 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
   };
 
   Saagie.prototype.createJobView = function () {
-    this.$modalBody.html('<p>Starting job…</p>');
+    this.renderTemplate('creating_job.html');
     this.$modalFooter.empty();
+    var kernel = Jupyter.notebook.kernel.name;
+    if (kernel in this.kernelNames) {
+      kernel = this.kernelNames[kernel];
+    } else {
+      this.renderTemplate('unsupported_kernel.html', {kernel: kernel});
+      return;
+    }
     this.request('POST', this.createJobUrl, {json: JSON.stringify({
       platform_id: '2',
       capsule_code: 'jupiter',
@@ -142,28 +150,31 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
         disk: 1024,
         memory: 1024,
         options: {
-          notebook: 'jupyter'
+          notebook: kernel
         }
       }
     })}, false).done(function (data) {
       data = JSON.parse(data);
-      this.uploadNotebook(data.id, 'https://' + data.current.url);
+      this.uploadNotebook(data.id, 'https://' + data.current.url, true);
     }.bind(this));
   };
 
-  Saagie.prototype.uploadNotebook = function (id, url) {
+  Saagie.prototype.uploadNotebook = function (id, url, updateModal) {
+    if (typeof updateModal === 'undefined') {
+      updateModal = false;
+    }
     var notebookName = Jupyter.notebook.notebook_name;
+    var templateData = {id: id, url: url + '/notebooks/' + notebookName};
+    if (updateModal) {
+      this.renderTemplate('starting_job.html', templateData);
+    }
     var uploadUrl = url + '/api/contents/' + notebookName;
     this.request('GET', url).done(function () {
       this.request('PUT', uploadUrl,
                    {json: JSON.stringify(
                      {content: Jupyter.notebook.toJSON()})})
       .done(function () {
-        this.getTemplate('job_details.html',
-                         {id: id, url: url + '/notebooks/' + notebookName})
-          .done(function (html) {
-            this.$modalBody.html(html);
-          }.bind(this));
+        this.renderTemplate('job_details.html', templateData);
       }.bind(this));
     }.bind(this)).fail(function () {
       setTimeout(function () {

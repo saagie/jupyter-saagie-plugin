@@ -19,11 +19,13 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
     this.createButtonsGroup();
   }
 
-  Saagie.prototype.request = function (method, url, data, async) {
+  Saagie.prototype.request = function (method, url, data, async,
+                                       allowRedirects) {
     if (typeof async === 'undefined') {
       async = true;
     }
-    var updatedData = {method: method, url: url};
+    var updatedData = {method: method, url: url,
+                       allow_redirects: allowRedirects};
     if (typeof data !== 'undefined') {
       $.extend(updatedData, data);
     }
@@ -106,7 +108,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
   };
 
   Saagie.prototype.isLogged = function () {
-    return this.request('GET', this.configUrl, {}, false).status == 200;
+    return this.request('GET', this.configUrl, {}, false, false).status == 200;
   };
 
   Saagie.prototype.log = function (username, password) {

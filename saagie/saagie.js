@@ -1,9 +1,8 @@
 define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
        function (require, $, dialog, Jupyter) {
   function Saagie () {
-    this.configUrl = '/api-internal/v1/platform';
+    this.platformsUrl = '/api-internal/v1/platform';
     this.loginUrl = '/login_check';
-    this.createJobUrl = '/api-internal/v1/platform/2/job';
     // Binds Jupyter kernel names to Saagie kernel names.
     this.kernelNames = {
       python2: 'jupyter',
@@ -19,11 +18,11 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
     this.createButtonsGroup();
   }
 
-  Saagie.prototype.request = function (method, url, data, async,
-                                       allowRedirects) {
-    if (typeof async === 'undefined') {
-      async = true;
-    }
+  Saagie.prototype.getCreateJobUrl = function (platformId) {
+    return '/api-internal/v1/platform/' + platformId.toString() + '/job';
+  };
+
+  Saagie.prototype.request = function (method, url, data, allowRedirects) {
     var updatedData = {method: method, url: url,
                        allow_redirects: allowRedirects};
     if (typeof data !== 'undefined') {
@@ -33,7 +32,6 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       url: '/saagie/proxy',
       method: 'POST',
       data: updatedData,
-      async: async,
       timeout: 6000
     }).fail(function (xhr) {
       if (xhr.status == 500) {
@@ -100,15 +98,28 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       return;
     }
     this.alreadyOpened = true;
-    if (!this.isLogged()) {
-      this.logView();
-    } else {
-      this.createJobView();
-    }
+    this.checkLogged(function () {
+      this.createJobFormView();
+    }.bind(this));
   };
 
-  Saagie.prototype.isLogged = function () {
-    return this.request('GET', this.configUrl, {}, false, false).status == 200;
+  Saagie.prototype.checkLogged = function (successFunction, failureFunction) {
+    if (typeof successFunction === 'undefined') {
+      successFunction = function () {};
+    }
+    if (typeof failureFunction === 'undefined') {
+      failureFunction = function (jqXHR) {
+        if (jqXHR.status == 302) {
+          this.logView();
+        }
+      }.bind(this);
+    }
+
+    return this.request('GET', this.platformsUrl, {},
+                        false).done(function (data, textStatus, jqXHR) {
+      console.assert(jqXHR.status == 200, 'Unexpected status ' + jqXHR.status);
+      successFunction(data, textStatus, jqXHR);
+    }).fail(failureFunction);
   };
 
   Saagie.prototype.log = function (username, password) {
@@ -126,20 +137,34 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
         var username = $form.find('#username').val(),
             password = $form.find('#password').val();
         this.log(username, password).done(function () {
-          if (this.isLogged()) {
-            this.createJobView();
-          } else {
+          this.checkLogged(function () {
+            this.createJobFormView();
+          }.bind(this), function () {
             $form.find('.alert').removeClass('hidden');
             $submitButton.find('.fa-spin').detach();
-          }
+          });
         }.bind(this));
       }.bind(this));
       this.$modalContent.html($form);
     }.bind(this));
   };
 
+  Saagie.prototype.createJobFormView = function () {
+    this.request('GET', this.platformsUrl).done(function (platformsData) {
+      this.renderTemplate('job_form.html', {
+        notebook_name: Jupyter.notebook.get_notebook_name(),
+        platforms_data: $.map(JSON.parse(platformsData), function (el) {
+          return el['id'].toString() + ':' + el['name'];
+        }).join(',')
+      });
+      this.$modalContent.submit(function (e) {
+        e.preventDefault();
+        this.createJobView();
+      }.bind(this));
+    }.bind(this));
+  };
+
   Saagie.prototype.createJobView = function () {
-    this.renderTemplate('creating_job.html');
     var kernel = Jupyter.notebook.kernel.name;
     if (kernel in this.kernelNames) {
       kernel = this.kernelNames[kernel];
@@ -147,23 +172,27 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       this.renderTemplate('unsupported_kernel.html', {kernel: kernel});
       return;
     }
-    this.request('POST', this.createJobUrl, {json: JSON.stringify({
-      platform_id: '2',
-      capsule_code: 'jupiter',
-      category: 'processing',
-      name: Jupyter.notebook.get_notebook_name(),
-      current: {
-        cpu: 0.6,
-        disk: 1024,
-        memory: 1024,
-        options: {
-          notebook: kernel
+    var platformId = $('#saagie-platform').val();
+    this.request('POST', this.getCreateJobUrl(platformId), {
+      json: JSON.stringify({
+        platform_id: platformId,
+        capsule_code: 'jupiter',
+        category: 'processing',
+        name: $('#saagie-job-name').val(),
+        current: {
+          cpu: $('#saagie-cpu').val(),
+          disk: $('#saagie-disk').val(),
+          memory: $('#saagie-ram').val(),
+          options: {
+            notebook: kernel
+          }
         }
-      }
-    })}, false).done(function (data) {
+      })
+    }).done(function (data) {
       data = JSON.parse(data);
       this.uploadNotebook(data.id, 'https://' + data.current.url, true);
     }.bind(this));
+    this.renderTemplate('creating_job.html');
   };
 
   Saagie.prototype.uploadNotebook = function (id, url, updateModal) {
@@ -193,7 +222,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
   var load_extension = function () {
     $.ajax({url: '/saagie/check', timeout: 6000}).done(function () {
       saagie = new Saagie();
-    }).error(function () {
+    }).fail(function () {
       console.error(
         'Unable to find the saagie Python module, please install ' +
         'jupyter-saagie-plugin in this Python environment.');

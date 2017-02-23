@@ -1,0 +1,55 @@
+{% extends 'modal_content.html' %}
+
+
+{% block title %}Create job{% endblock %}
+
+
+{% block content_tag %}form{% endblock %}
+
+
+{% block body %}
+  {% macro input(name, value, verbose_name=None, type='text',
+                 suffix=None, step=None, min=0) %}
+    <div class="form-group">
+      <label for="saagie-{{ name }}">
+        {{ verbose_name|default(name|replace('-', ' ')|capitalize, boolean=True) }}
+      </label>
+      {% set input_tag %}
+        <input id="saagie-{{ name }}" class="form-control" type="{{ type }}"
+               name="{{ name }}" value="{{ value }}" min="{{ min }}" required
+               {% if step is not none %}step="{{ step }}"{% endif %} />
+      {% endset %}
+      {% if suffix is none %}
+        {{ input_tag }}
+      {% else %}
+        <div class="input-group">
+          {{ input_tag }}
+          <span class="input-group-addon">{{ suffix }}</span>
+        </div>
+      {% endif %}
+    </div>
+  {% endmacro %}
+
+  <div class="form-group">
+    <label for="saagie-platform">Platform</label>
+    <select id="saagie-platform" class="form-control" name="saagie-platform"
+            required style="margin: 0;">
+      {% for platform_data in platforms_data.split(',') %}
+        {% set id, name = platform_data.split(':') %}
+        <option value="{{ id }}"{% if loop.first %} selected{% endif %}>
+          {{ name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  {{ input('job-name', notebook_name) }}
+  {{ input('cpu', 0.6, verbose_name='CPU', type='number', step=0.1) }}
+  {{ input('ram', 1024, verbose_name='RAM', type='number', suffix='MB', step=1,
+           min=256) }}
+  {{ input('disk', 1024, type='number', suffix='MB', step=1, min=256) }}
+{% endblock %}
+
+
+{% block footer %}
+  <button class="btn btn-primary" type="submit">Create job</button>
+{% endblock %}

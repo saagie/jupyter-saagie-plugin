@@ -190,17 +190,20 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       })
     }).done(function (data) {
       data = JSON.parse(data);
-      this.uploadNotebook(data.id, 'https://' + data.current.url, true);
+      this.uploadNotebook(platformId, data.id, 'https://' + data.current.url,
+                          true);
     }.bind(this));
     this.renderTemplate('creating_job.html');
   };
 
-  Saagie.prototype.uploadNotebook = function (id, url, updateModal) {
+  Saagie.prototype.uploadNotebook = function (platformId, id, url,
+                                              updateModal) {
     if (typeof updateModal === 'undefined') {
       updateModal = false;
     }
     var notebookName = Jupyter.notebook.notebook_name;
-    var templateData = {id: id, url: url + '/notebooks/' + notebookName};
+    var templateData = {platform_id: platformId, id: id,
+                        url: url + '/notebooks/' + notebookName};
     if (updateModal) {
       this.renderTemplate('starting_job.html', templateData);
     }
@@ -214,7 +217,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       }.bind(this));
     }.bind(this)).fail(function () {
       setTimeout(function () {
-        this.uploadNotebook(id, url);
+        this.uploadNotebook(platformId, id, url);
       }.bind(this), 1000);
     }.bind(this));
   };

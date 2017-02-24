@@ -9,7 +9,7 @@ Install
 
 In your Jupyter Python environment, run:
 
-| ``pip install https://github.com/saagie/jupyter-saagie-plugin/archive/0.3.0.tar.gz``
+| ``pip install https://github.com/saagie/jupyter-saagie-plugin/archive/0.5.1.tar.gz``
 
 Usage
 -----

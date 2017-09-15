@@ -1,0 +1,20 @@
+{% extends 'job_form.html' %}
+
+
+{% block extra_fields %}
+  <div class="form-group">
+    <label for="release-note">Release note</label>
+    <textarea id="release-note" name="release-note"
+              class="form-control"></textarea>
+  </div>
+  {{ input('shell-command', 'python {file} arg1 arg2',
+           verbose_name='Command to launch the job') }}
+  <div class="form-group">
+    <label for="language-version">Python version</label>
+    <select id="language-version" name="language-version" class="form-control"
+            style="margin: 0;">
+      <option value="3.5.2" selected>3.5.2 (recommended)</option>
+      <option value="2.7.13">2.7.13</option>
+    </select>
+  </div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends 'include/job_details.html' %}
+
+{% block extra_buttons %}
+  <a class="btn btn-primary" href="{{ job_admin_url + '/logs' }}"
+     target="_blank">
+    {% if started %}
+      <i class="fa fa-file-text-o fa-fw"></i>
+    {% else %}
+      <i class="fa fa-spinner fa-spin fa-fw"></i>
+    {% endif %}
+    See detailed job logs
+  </a>
+{% endblock %}

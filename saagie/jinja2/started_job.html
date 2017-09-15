@@ -1,13 +1,24 @@
 {% extends 'modal_content.html' %}
 
-{% block title %}Ready to use{% endblock %}
+{% block title %}Job run{% endblock %}
 
 {% block body %}
-  <p>Job successfully created & started!</p>
-  <p>It’s now ready to use.</p>
+  <p>Job successfully run!</p>
+  {% if stderr %}
+    <h4>Error output</h4>
+    <pre class="text-danger" style="overflow-y: auto; max-height: 140px;">
+      {{- stderr -}}
+    </pre>
+  {% endif %}
+  {% if stdout %}
+    <h4>Standard output</h4>
+    <pre style="overflow-y: auto; max-height: 140px;">
+      {{- stdout -}}
+    </pre>
+  {% endif %}
 {% endblock %}
 
 {% block footer %}
   {% set started = True %}
-  {% include 'include/job_details.html' %}
+  {% include job_details_template_name %}
 {% endblock %}

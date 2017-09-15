@@ -13,19 +13,28 @@ env = Environment(
 session = requests.Session()
 
 
+SAAGIE_ROOT_URL = 'https://manager.prod.saagie.io'
+
+
+def get_absolute_saagie_url(saagie_url):
+    if saagie_url.startswith('/'):
+        return SAAGIE_ROOT_URL + saagie_url
+    return saagie_url
+
+
 class SaagieHandler(IPythonHandler):
     def get(self):
-        data = self.request.arguments.copy()
-        try:
-            template = data.pop('template')[0].decode()
-        except (KeyError, IndexError):
-            template = ''
+        data = {k: v[0].decode() for k, v in self.request.arguments.items()}
+        template = data.pop('template') if 'template' in data else ''
+        data.update(
+            get_absolute_saagie_url=get_absolute_saagie_url,
+            SAAGIE_ROOT_URL=SAAGIE_ROOT_URL,
+        )
         try:
             template = env.get_template(template)
         except TemplateNotFound:
             self.send_error(404)
-        self.finish(template.render({k: v[0].decode()
-                                     for k, v in data.items()}))
+        self.finish(template.render(data))
 
 
 class SaagieCheckHandler(IPythonHandler):
@@ -43,9 +52,8 @@ class SaagieProxyHandler(IPythonHandler):
             url = data.pop('url')[0].decode()
         except (KeyError, IndexError):
             url = ''
-        if url.startswith('/'):
-            url = 'https://manager.prod.saagie.io' + url
-        elif CONTAINER_RE.match(url) is None:
+        url = get_absolute_saagie_url(url)
+        if CONTAINER_RE.match(url) is None:
             self.send_error(404)
             return
         try:
@@ -56,9 +64,15 @@ class SaagieProxyHandler(IPythonHandler):
             json_data = json.loads(data.pop('json')[0].decode())
         except (KeyError, IndexError, ValueError):
             json_data = None
+        try:
+            filename = data.pop('filename')[0].decode()
+            files = {'file': (filename + '.py', data.pop('file')[0].decode())}
+        except (KeyError, IndexError):
+            files = {}
         allow_redirects = data.pop('allow_redirects', 'true') == 'true'
-        response = session.request(method, url, data=data, json=json_data,
-                                   timeout=5, allow_redirects=allow_redirects)
+        response = session.request(
+            method, url, data=data, json=json_data, files=files,
+            timeout=5, allow_redirects=allow_redirects)
         if response.status_code != 200:
             self.send_error(response.status_code)
             return

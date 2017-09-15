@@ -1,10 +1,104 @@
+var saagie;
+
 define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
        function (require, $, dialog, Jupyter) {
+  function JobRun(job, runData) {
+    this.job = job;
+    this.id = runData.id;
+    this.status = runData.status;
+    this.stderr = runData.logs_err;
+    this.stdout = runData.logs_out;
+  }
+
+  function Job(saagie, jobData) {
+    this.saagie = saagie;
+    this.platformId = jobData.platform_id;
+    this.capsuleType = jobData.capsule_code;
+    this.id = jobData.id;
+    this.name = jobData.name;
+    this.url = this.saagie.getCreateJobUrl(this.platformId)
+               + '/' + this.id.toString();
+    if (this.isJupyter()) {
+      this.jupyterUrl = 'https://' + jobData.current.url;
+      this.notebookName = Jupyter.notebook.notebook_name;
+    }
+    this.lastRun = null;
+    this.displayStarting();
+    this.fetchLogs();
+  }
+
+  Job.prototype.isJupyter = function () {
+    // Yes, this is a typo from Saagie internals.
+    return this.capsuleType == 'jupiter';
+  };
+
+  Job.prototype.getTemplateData = function () {
+    var prefix = this.isJupyter() ? 'jupyter' : 'python';
+    var jobDetailsTemplateName = 'include/' + prefix + '_job_details.html';
+    var templateData = {platform_id: this.platformId,
+                        job_details_template_name: jobDetailsTemplateName,
+                        id: this.id};
+    if (this.lastRun !== null) {
+      templateData.stderr = this.lastRun.stderr;
+      templateData.stdout = this.lastRun.stdout;
+    }
+    if (this.isJupyter()) {
+      templateData.jupyter_url =
+        this.jupyterUrl + '/notebooks/' + this.notebookName;
+    }
+    return templateData;
+  };
+
+  Job.prototype.displayStarting = function () {
+    this.saagie.renderTemplate('starting_job.html', this.getTemplateData());
+  };
+
+  Job.prototype.displayStarted = function () {
+    this.saagie.renderTemplate('started_job.html', this.getTemplateData());
+  };
+
+  Job.prototype.fetchLogs = function () {
+    this.saagie.request('GET', this.url).done(function (data) {
+      data = JSON.parse(data);
+      var runData = data.last_instance;
+      if ((typeof runData === 'undefined') || (runData.status != 'SUCCESS')) {
+        setTimeout(this.fetchLogs.bind(this), 1000);
+        return;
+      }
+      this.saagie.request(
+        'GET', '/api-internal/v1/jobtask/' + runData.id.toString())
+        .done(function (data) {
+          this.lastRun = new JobRun(this, JSON.parse(data));
+          if (this.isJupyter()) {
+            this.uploadNotebook();
+          } else {
+            this.displayStarted();
+          }
+        }.bind(this));
+    }.bind(this));
+  };
+
+  Job.prototype.uploadNotebook = function () {
+    var uploadUrl = this.jupyterUrl + '/api/contents/' + this.notebookName;
+    this.saagie.request('GET', this.jupyterUrl).done(function () {
+      this.saagie.request(
+        'PUT', uploadUrl, {
+          json: JSON.stringify({content: Jupyter.notebook.toJSON()})})
+      .done(function () {
+        this.displayStarted()
+      }.bind(this));
+    }.bind(this)).fail(function () {
+      setTimeout(function () {
+        this.uploadNotebook();
+      }.bind(this), 1000);
+    }.bind(this));
+  };
+
   function Saagie () {
     this.platformsUrl = '/api-internal/v1/platform';
     this.loginUrl = '/login_check';
     // Binds Jupyter kernel names to Saagie kernel names.
-    this.kernelNames = {
+    this.jupyterKernelNames = {
       python2: 'jupyter',
       python3: 'jupyter',
       ir: 'r',
@@ -14,6 +108,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       'julia-0.3': 'julia'
     };
     this.alreadyOpened = false;
+    this.currentJob = null;
     this.createModal();
     this.createButtonsGroup();
   }
@@ -58,7 +153,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
   };
 
   Saagie.prototype.renderTemplate = function (template, data) {
-    this.getTemplate(template, data).done(function (html) {
+    return this.getTemplate(template, data).done(function (html) {
       this.$modalContent.html(html);
     }.bind(this));
   };
@@ -99,7 +194,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
     }
     this.alreadyOpened = true;
     this.checkLogged(function () {
-      this.createJobFormView();
+      this.capsuleTypeChooserView();
     }.bind(this));
   };
 
@@ -138,7 +233,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
             password = $form.find('#password').val();
         this.log(username, password).done(function () {
           this.checkLogged(function () {
-            this.createJobFormView();
+            this.capsuleTypeChooserView();
           }.bind(this), function () {
             $form.find('.alert').removeClass('hidden');
             $submitButton.find('.fa-spin').detach();
@@ -149,9 +244,22 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
     }.bind(this));
   };
 
-  Saagie.prototype.createJobFormView = function () {
+  Saagie.prototype.capsuleTypeChooserView = function () {
+    this.renderTemplate('capsule_type_chooser.html').done(function () {
+      this.$modalContent.find('.deploy-python').click(function () {
+        this.createJobFormView('python_job_form.html',
+                               this.createPythonJobView.bind(this));
+      }.bind(this));
+      this.$modalContent.find('.deploy-jupyter').click(function () {
+        this.createJobFormView('jupyter_job_form.html',
+                               this.createJupyterJobView.bind(this));
+      }.bind(this));
+    }.bind(this));
+  };
+
+  Saagie.prototype.createJobFormView = function (templateName, onSubmit) {
     this.request('GET', this.platformsUrl).done(function (platformsData) {
-      this.renderTemplate('job_form.html', {
+      this.renderTemplate(templateName, {
         notebook_name: Jupyter.notebook.get_notebook_name(),
         platforms_data: $.map(JSON.parse(platformsData), function (el) {
           return el['id'].toString() + ':' + el['name'];
@@ -159,67 +267,83 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
       });
       this.$modalContent.submit(function (e) {
         e.preventDefault();
-        this.createJobView();
+        onSubmit();
       }.bind(this));
     }.bind(this));
   };
 
-  Saagie.prototype.createJobView = function () {
+  Saagie.prototype.getFieldValue = function (name) {
+    return this.$modalContent.find('[name="' + name + '"]').val();
+  };
+
+  Saagie.prototype.createBaseJobData = function () {
+    return {
+      platform_id: this.getFieldValue('saagie-platform'),
+      category: 'processing',
+      name: this.getFieldValue('job-name'),
+      description: this.getFieldValue('description'),
+      current: {
+        cpu: this.getFieldValue('cpu'),
+        disk: this.getFieldValue('disk'),
+        memory: this.getFieldValue('ram'),
+        options: {}
+      }
+    };
+  };
+
+  Saagie.prototype.createJobView = function (jobData) {
+    return this.request('POST', this.getCreateJobUrl(jobData.platform_id), {
+      json: JSON.stringify(jobData)
+    }).done(function (data) {
+      this.currentJob = new Job(this, JSON.parse(data));
+    }.bind(this));
+  };
+
+  Saagie.prototype.getCode = function () {
+    var code = '';
+    Jupyter.notebook.get_cells().forEach(function (cell) {
+      if (cell.cell_type != 'code') {
+        return;
+      }
+      if (code) {
+        code += '\n\n\n';
+      }
+      code += cell.get_text();
+    });
+    return code;
+  };
+
+  Saagie.prototype.createPythonJobView = function () {
+    this.renderTemplate('creating_job.html');
+    var jobData = this.createBaseJobData();
+    jobData.capsule_code = 'python';
+    jobData.current.options.language_version = this.getFieldValue('language-version');
+    jobData.current.releaseNote = this.getFieldValue('release-note');
+    jobData.current.template = this.getFieldValue('shell-command');
+    var uploadUrl = this.getCreateJobUrl(this.getFieldValue('saagie-platform'));
+    uploadUrl += '/upload';
+    this.request('POST', uploadUrl, {
+      filename: this.getFieldValue('job-name'),
+      file: this.getCode()
+    }).done(function (data) {
+      jobData.current.file = JSON.parse(data).fileName;
+      this.createJobView(jobData);
+    }.bind(this));
+  };
+
+  Saagie.prototype.createJupyterJobView = function () {
+    this.renderTemplate('creating_job.html');
     var kernel = Jupyter.notebook.kernel.name;
-    if (kernel in this.kernelNames) {
-      kernel = this.kernelNames[kernel];
+    if (kernel in this.jupyterKernelNames) {
+      kernel = this.jupyterKernelNames[kernel];
     } else {
       this.renderTemplate('unsupported_kernel.html', {kernel: kernel});
       return;
     }
-    var platformId = $('#saagie-platform').val();
-    this.request('POST', this.getCreateJobUrl(platformId), {
-      json: JSON.stringify({
-        platform_id: platformId,
-        capsule_code: 'jupiter',
-        category: 'processing',
-        name: $('#saagie-job-name').val(),
-        current: {
-          cpu: $('#saagie-cpu').val(),
-          disk: $('#saagie-disk').val(),
-          memory: $('#saagie-ram').val(),
-          options: {
-            notebook: kernel
-          }
-        }
-      })
-    }).done(function (data) {
-      data = JSON.parse(data);
-      this.uploadNotebook(platformId, data.id, 'https://' + data.current.url,
-                          true);
-    }.bind(this));
-    this.renderTemplate('creating_job.html');
-  };
-
-  Saagie.prototype.uploadNotebook = function (platformId, id, url,
-                                              updateModal) {
-    if (typeof updateModal === 'undefined') {
-      updateModal = false;
-    }
-    var notebookName = Jupyter.notebook.notebook_name;
-    var templateData = {platform_id: platformId, id: id,
-                        url: url + '/notebooks/' + notebookName};
-    if (updateModal) {
-      this.renderTemplate('starting_job.html', templateData);
-    }
-    var uploadUrl = url + '/api/contents/' + notebookName;
-    this.request('GET', url).done(function () {
-      this.request('PUT', uploadUrl,
-                   {json: JSON.stringify(
-                     {content: Jupyter.notebook.toJSON()})})
-      .done(function () {
-        this.renderTemplate('started_job.html', templateData);
-      }.bind(this));
-    }.bind(this)).fail(function () {
-      setTimeout(function () {
-        this.uploadNotebook(platformId, id, url);
-      }.bind(this), 1000);
-    }.bind(this));
+    var jobData = this.createBaseJobData();
+    jobData.capsule_code = 'jupiter';
+    jobData.current.options.notebook = kernel;
+    this.createJobView(jobData);
   };
 
   var load_extension = function () {

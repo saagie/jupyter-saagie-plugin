@@ -3,22 +3,25 @@
 {% block title %}Job run{% endblock %}
 
 {% block body %}
-  <p>Job successfully run!</p>
-  {% if stderr %}
-    <h4>Error output</h4>
-    <pre class="text-danger" style="overflow-y: auto; max-height: 140px;">
-      {{- stderr -}}
-    </pre>
+  {% if job.last_run.status == 'FAILED' %}
+    <p class="text-danger">An error occurred in your script.</p>
+  {% else %}
+    <p>Job successfully run!</p>
   {% endif %}
-  {% if stdout %}
+  {% if job.last_run.stdout %}
     <h4>Standard output</h4>
     <pre style="overflow-y: auto; max-height: 140px;">
-      {{- stdout -}}
+      {{- job.last_run.stdout -}}
+    </pre>
+  {% endif %}
+  {% if job.last_run.stderr %}
+    <h4>Error output</h4>
+    <pre class="text-danger" style="overflow-y: auto; max-height: 140px;">
+      {{- job.last_run.stderr -}}
     </pre>
   {% endif %}
 {% endblock %}
 
 {% block footer %}
-  {% set started = True %}
-  {% include job_details_template_name %}
+  {% include job.details_template_name %}
 {% endblock %}

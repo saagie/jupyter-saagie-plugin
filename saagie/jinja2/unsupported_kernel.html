@@ -1,6 +1,8 @@
 {% extends 'modal_content.html' %}
 
 {% block body %}
-  <p>“{{ kernel }}” is not a supported kernel as of now.</p>
+  <p>
+    “{{ notebook.kernel_display_name }}” is not a supported kernel as of now.
+  </p>
   <p>This notebook therefore cannot be deployed to Saagie.</p>
 {% endblock %}

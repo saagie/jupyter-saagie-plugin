@@ -2,12 +2,13 @@
 
 {% block title %}Starting job{% endblock %}
 
+{% block content_attrs %}data-auto-refresh-url="/saagie?view=starting_job"{% endblock %}
+
 {% block body %}
   <p>Job successfully created!</p>
   <p>Waiting for it to fully start… It can take a few minutes.</p>
 {% endblock %}
 
 {% block footer %}
-  {% set started = False %}
-  {% include job_details_template_name %}
+  {% include job.details_template_name %}
 {% endblock %}

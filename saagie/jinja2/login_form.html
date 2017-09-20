@@ -1,9 +1,12 @@
 {% extends 'modal_content.html' %}
 
 {% block content_tag %}form{% endblock %}
+{% block content_attrs %}method="POST" action="/saagie?view=login_form"{% endblock %}
 
 {% block body %}
-  <div class="alert alert-danger hidden">Invalid username or password.</div>
+  {% if error %}
+    <div class="alert alert-danger hidden">{{ error }}</div>
+  {% endif %}
   <div class="form-group">
     <label for="username">Username</label>
     <input id="username" class="form-control" name="username" type="text" />

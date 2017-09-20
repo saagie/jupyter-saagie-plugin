@@ -5,6 +5,7 @@
 
 
 {% block content_tag %}form{% endblock %}
+{% block content_attrs %}method="POST" action="{{ action }}"{% endblock %}
 
 
 {% block body %}
@@ -30,23 +31,24 @@
     </div>
   {% endmacro %}
 
-  <div class="form-group">
-    <label for="saagie-platform">Platform</label>
-    <select id="saagie-platform" class="form-control" name="saagie-platform"
-            required style="margin: 0;">
-      {% for platform_data in platforms_data.split(',') %}
-        {% set id, name = platform_data.split(':') %}
-        <option value="{{ id }}"{% if loop.first %} selected{% endif %}>
-          {{ name }}
-        </option>
-      {% endfor %}
-    </select>
-  </div>
-  {{ input('job-name', notebook_name) }}
-  <div class="form-group">
-    <label for="description">Description</label>
-    <textarea id="description" name="description" class="form-control"></textarea>
-  </div>
+  {% block job_creation_only_fields scoped %}
+    <div class="form-group">
+      <label for="saagie-platform">Platform</label>
+      <select id="saagie-platform" class="form-control" name="saagie-platform"
+              required style="margin: 0;">
+        {% for platform in platforms %}
+          <option value="{{ platform.id }}"{% if loop.first %} selected{% endif %}>
+            {{ platform.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    {{ input('job-name', notebook.name) }}
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" class="form-control"></textarea>
+    </div>
+  {% endblock %}
 
   {% block extra_fields scoped %}{% endblock %}
 

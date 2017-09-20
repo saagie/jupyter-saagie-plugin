@@ -1,10 +1,22 @@
 {% extends 'modal_content.html' %}
 
 {% block body %}
-  <button type="button" class="deploy-python btn btn-primary btn-lg btn-block">
+  {% set can_update = notebook.current_job and not notebook.current_job.is_jupyter %}
+
+  {% if can_update %}
+    <a href="#" data-href="/saagie?view=update_python_job" class="btn btn-primary btn-lg btn-block">
+      Update already deployed Python job
+    </a>
+  {% endif %}
+  {% if notebook.current_job %}
+    <a href="#" data-href="/saagie?view=starting_job" class="btn btn-default btn-lg btn-block">
+      See already deployed job
+    </a>
+  {% endif %}
+  <a href="#" data-href="/saagie?view=python_job_form" class="btn btn-{% if can_update %}default{% else %}primary{% endif %} btn-lg btn-block">
     Deploy as a new Python job
-  </button>
-  <button type="button" class="deploy-jupyter btn btn-default btn-lg btn-block">
+  </a>
+  <a href="#" data-href="/saagie?view=jupyter_job_form" class="btn btn-default btn-lg btn-block">
     Deploy as a new Jupyter Notebook job
-  </button>
+  </a>
 {% endblock %}

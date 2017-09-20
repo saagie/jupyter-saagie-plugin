@@ -17,4 +17,15 @@
       <option value="2.7.13">2.7.13</option>
     </select>
   </div>
+  <div class="form-group">
+    <label>Selected code cells</label>
+    {% for cell in notebook.get_code_cells() %}
+      <label class="row" style="display: block;">
+        <input class="col-xs-1" type="checkbox" name="code-lines" value="{{ loop.index0 }}" checked />
+        <pre class="col-xs-11" style="overflow-y: auto; max-height: 73px;">
+          {{- cell -}}
+        </pre>
+      </label>
+    {% endfor %}
+  </div>
 {% endblock %}

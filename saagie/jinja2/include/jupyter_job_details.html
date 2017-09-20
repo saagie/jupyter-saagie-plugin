@@ -1,8 +1,8 @@
 {% extends 'include/job_details.html' %}
 
 {% block extra_buttons %}
-  <a class="btn btn-primary" href="{{ jupyter_url }}" target="_blank">
-    {% if started %}
+  <a class="btn btn-primary" href="{{ job.jupyter_url }}" target="_blank">
+    {% if job.is_started %}
       <i class="fa fa-play fa-fw"></i>
     {% else %}
       <i class="fa fa-spinner fa-spin fa-fw"></i>

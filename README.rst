@@ -1,15 +1,15 @@
 Jupyter Saagie plugin
 =====================
 
-This plugin allows you to easily create a Jupyter notebook on Saagie
-from a local notebook.
+This plugin allows you to easily create a Saagie Python or Jupyter job from
+a local Jupyter notebook.
 
 Install
 -------
 
 In your Jupyter Python environment, run:
 
-| ``pip install https://github.com/saagie/jupyter-saagie-plugin/archive/0.5.1.tar.gz``
+| ``pip install https://github.com/saagie/jupyter-saagie-plugin/archive/0.6.0.tar.gz``
 
 Usage
 -----
@@ -17,7 +17,9 @@ Usage
 Simply run ``jupyter notebook`` as always, you will see a new button
 in the toolbar. Use it to log on your account and deploy the notebook.
 
-These kernels are currently supported:
+For deploying to a Python job, Python 3.6 & 2.7 are supported.
+
+For deploying to a Jupyter job, these kernels are currently supported:
 
 - Python 2
 - Python 3

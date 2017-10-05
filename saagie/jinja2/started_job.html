@@ -8,18 +8,6 @@
   {% else %}
     <p>Job successfully run!</p>
   {% endif %}
-  {% if job.last_run.stdout %}
-    <h4>Standard output</h4>
-    <pre style="overflow-y: auto; max-height: 140px;">
-      {{- job.last_run.stdout -}}
-    </pre>
-  {% endif %}
-  {% if job.last_run.stderr %}
-    <h4>Error output</h4>
-    <pre class="text-danger" style="overflow-y: auto; max-height: 140px;">
-      {{- job.last_run.stderr -}}
-    </pre>
-  {% endif %}
 {% endblock %}
 
 {% block footer %}

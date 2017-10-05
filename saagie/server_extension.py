@@ -1,7 +1,6 @@
 from functools import wraps
 import json
 import os
-from time import sleep
 import traceback
 
 from jinja2 import Environment, PackageLoader
@@ -22,16 +21,6 @@ LOGIN_URL = SAAGIE_ROOT_URL + '/login_check'
 JOB_URL_PATTERN = PLATFORMS_URL + '/%s/job'
 JOB_UPGRADE_URL_PATTERN = JOB_URL_PATTERN + '/%s/version'
 SCRIPT_UPLOAD_URL_PATTERN = JOB_URL_PATTERN + '/upload'
-
-JUPYTER_KERNELS_TO_SAAGIE_NAMES = {
-    'python2': 'jupyter',
-    'python3': 'jupyter',
-    'ir': 'r',
-    'spark': 'scala-spark1.6',
-    'ruby': 'ruby',
-    'haskell': 'haskell',
-    'julia-0.3': 'julia'
-}
 
 
 def get_absolute_saagie_url(saagie_url):
@@ -104,10 +93,6 @@ class SaagieJob:
         self.capsule_type = job_data['capsule_code']
         self.id = job_data['id']
         self.name = job_data['name']
-        if self.is_jupyter:
-            self.jupyter_domain = 'https://' + job_data['current']['url']
-            self.jupyter_url = '%s/notebooks/%s' % (
-                self.jupyter_domain, self.notebook.path)
         self.last_run = None
 
     @property
@@ -124,11 +109,6 @@ class SaagieJob:
         return self.admin_url + '/logs'
 
     @property
-    def is_jupyter(self):
-        # Yes, this is a typo from Saagie internals.
-        return self.capsule_type == 'jupiter'
-
-    @property
     def is_started(self):
         return self.last_run is not None
 
@@ -142,35 +122,12 @@ class SaagieJob:
                                     % run_data['id'])).json()
         self.last_run = SaagieJobRun(self, run_data)
 
-    def wait_until_ready_to_upload_notebook(self):
-        while True:
-            response = session.get(self.jupyter_url)
-            if response.status_code < 400:
-                break
-            sleep(3)
-
-    def upload_notebook(self):
-        upload_url = self.jupyter_url + '/api/contents/' + \
-                     self.notebook.path
-        session.put(upload_url, json={'content': self.notebook.json})
-
     @property
     def details_template_name(self):
-        if self.is_jupyter:
-            return 'include/jupyter_job_details.html'
         return 'include/python_job_details.html'
 
 
 class Notebook:
-    KERNELS_TO_SAAGIE_NAMES = {
-        'python2': 'jupyter',
-        'python3': 'jupyter',
-        'ir': 'r',
-        'spark': 'scala-spark1.6',
-        'ruby': 'ruby',
-        'haskell': 'haskell',
-        'julia-0.3': 'julia'
-    }
     CACHE = {}
 
     def __init__(self, path, json_data):
@@ -203,12 +160,6 @@ class Notebook:
     @property
     def kernel_display_name(self):
         return self.json['metadata']['kernelspec']['display_name']
-
-    # For an unknown reason, Saagie uses different Jupyter notebook
-    # kernel names than Jupyter itself.
-    @property
-    def saagie_kernel_name(self):
-        return self.KERNELS_TO_SAAGIE_NAMES[self.kernel_name]
 
     def get_code_cells(self):
         return [cell['source'] for cell in self.json['cells']
@@ -304,7 +255,7 @@ def create_job_base_data(data):
 
 
 def upload_python_script(notebook, data):
-    code = notebook.get_code(map(int, data['code-lines'].split('|')))
+    code = notebook.get_code(map(int, data.get('code-lines', '').split('|')))
     files = {'file': (data['job-name'] + '.py', code)}
     return session.post(
         SCRIPT_UPLOAD_URL_PATTERN % data['saagie-platform'],
@@ -365,35 +316,10 @@ def unsupported_kernel(method, notebook, data):
 
 @views.add
 @login_required
-def jupyter_job_form(method, notebook, data):
-    if method == 'POST':
-        platform_id = data['saagie-platform']
-        job_data = create_job_base_data(data)
-        job_data['capsule_code'] = 'jupiter'  # This typo is from Saagie’s API.
-        try:
-            saagie_kernel_name = notebook.saagie_kernel_name
-        except KeyError:
-            return views.render('unsupported_kernel', notebook)
-        job_data['current']['options']['notebook'] = saagie_kernel_name
-        new_job_data = session.post(JOB_URL_PATTERN % platform_id,
-                                    json=job_data).json()
-        job = SaagieJob(notebook, new_job_data)
-        return views.render('starting_job', notebook, {'job': job})
-
-    context = get_job_form(method, notebook, data)
-    context['action'] = '/saagie?view=jupyter_job_form'
-    return context
-
-
-@views.add
-@login_required
 def starting_job(method, notebook, data):
     job = notebook.current_job
     job.fetch_logs()
     if job.is_started:
-        if job.is_jupyter:
-            job.wait_until_ready_to_upload_notebook()
-            job.upload_notebook()
         return views.render('started_job', notebook, {'job': job})
     return {'job': job}
 

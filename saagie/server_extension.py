@@ -18,9 +18,10 @@ session = requests.Session()
 SAAGIE_ROOT_URL = 'https://manager.prod.saagie.io'
 PLATFORMS_URL = SAAGIE_ROOT_URL + '/api-internal/v1/platform'
 LOGIN_URL = SAAGIE_ROOT_URL + '/login_check'
-JOB_URL_PATTERN = PLATFORMS_URL + '/%s/job'
-JOB_UPGRADE_URL_PATTERN = JOB_URL_PATTERN + '/%s/version'
-SCRIPT_UPLOAD_URL_PATTERN = JOB_URL_PATTERN + '/upload'
+JOBS_URL_PATTERN = PLATFORMS_URL + '/%s/job'
+JOB_URL_PATTERN = JOBS_URL_PATTERN + '/%s'
+JOB_UPGRADE_URL_PATTERN = JOBS_URL_PATTERN + '/%s/version'
+SCRIPT_UPLOAD_URL_PATTERN = JOBS_URL_PATTERN + '/upload'
 
 
 def get_absolute_saagie_url(saagie_url):
@@ -86,18 +87,27 @@ class SaagieJobRun:
 
 
 class SaagieJob:
+    @classmethod
+    def from_id(cls, notebook, platform_id, job_id):
+        return SaagieJob(
+            notebook,
+            session.get(JOB_URL_PATTERN % (platform_id, job_id)).json())
+
     def __init__(self, notebook, job_data):
         self.notebook = notebook
-        self.notebook.current_job = self
+        self.data = job_data
         self.platform_id = job_data['platform_id']
         self.capsule_type = job_data['capsule_code']
         self.id = job_data['id']
         self.name = job_data['name']
         self.last_run = None
 
+    def set_as_current(self):
+        self.notebook.current_job = self
+
     @property
     def url(self):
-        return (JOB_URL_PATTERN + '/%s') % (self.platform_id, self.id)
+        return (JOBS_URL_PATTERN + '/%s') % (self.platform_id, self.id)
 
     @property
     def admin_url(self):
@@ -126,9 +136,54 @@ class SaagieJob:
     def details_template_name(self):
         return 'include/python_job_details.html'
 
+    def __str__(self):
+        return self.name
+
+    def __eq__(self, other):
+        if other is None:
+            return False
+        return self.platform_id == other.platform_id and self.id == other.id
+
+    def __lt__(self, other):
+        if other is None:
+            return False
+        return self.id < other.id
+
+
+class SaagiePlatform:
+    SUPPORTED_CAPSULE_TYPES = {'python'}
+
+    def __init__(self, notebook, platform_data):
+        self.notebook = notebook
+        self.id = platform_data['id']
+        self.name = platform_data['name']
+        self.capsule_types = {c['code'] for c in platform_data['capsules']}
+
+    @property
+    def is_supported(self):
+        return not self.capsule_types.isdisjoint(self.SUPPORTED_CAPSULE_TYPES)
+
+    def get_jobs(self):
+        if not self.is_supported:
+            return []
+
+        jobs_data = session.get(JOBS_URL_PATTERN % self.id).json()
+        return [SaagieJob(self.notebook, job_data) for job_data in jobs_data
+                if job_data['category'] == 'processing' and
+                job_data['capsule_code'] in self.SUPPORTED_CAPSULE_TYPES]
+
+    def __eq__(self, other):
+        return self.id == other.id
+
 
 class Notebook:
     CACHE = {}
+
+    def __new__(cls, path, json):
+        if path in cls.CACHE:
+            return cls.CACHE[path]
+        cls.CACHE[path] = new = super(Notebook, cls).__new__(cls)
+        return new
 
     def __init__(self, path, json_data):
         if path is None:
@@ -142,12 +197,6 @@ class Notebook:
         # In cached instances, current_job is already defined.
         if not hasattr(self, 'current_job'):
             self.current_job = None
-
-    def __new__(cls, path, json):
-        if path in cls.CACHE:
-            return cls.CACHE[path]
-        cls.CACHE[path] = new = super(Notebook, cls).__new__(cls)
-        return new
 
     @property
     def name(self):
@@ -170,6 +219,10 @@ class Notebook:
         if indices is None:
             indices = list(range(len(cells)))
         return '\n\n\n'.join([cells[i] for i in indices])
+
+    def get_platforms(self):
+        return [SaagiePlatform(self, platform_data)
+                for platform_data in session.get(PLATFORMS_URL).json()]
 
 
 class ViewsCollection(dict):
@@ -235,8 +288,10 @@ def capsule_type_chooser(method, notebook, data):
 
 
 def get_job_form(method, notebook, data):
-    platforms = session.get(PLATFORMS_URL).json()
-    return {'platforms': platforms}
+    context = {'platforms': notebook.get_platforms()}
+    context['values'] = ({} if notebook.current_job is None
+                         else notebook.current_job.data)
+    return context
 
 
 def create_job_base_data(data):
@@ -274,9 +329,10 @@ def python_job_form(method, notebook, data):
         current['releaseNote'] = data['release-note']
         current['template'] = data['shell-command']
         current['file'] = upload_python_script(notebook, data)
-        new_job_data = session.post(JOB_URL_PATTERN % platform_id,
+        new_job_data = session.post(JOBS_URL_PATTERN % platform_id,
                                     json=job_data).json()
         job = SaagieJob(notebook, new_job_data)
+        job.set_as_current()
         return views.render('starting_job', notebook, {'job': job})
 
     context = get_job_form(method, notebook, data)
@@ -306,6 +362,23 @@ def update_python_job(method, notebook, data):
     context = get_job_form(method, notebook, data)
     context['action'] = '/saagie?view=update_python_job'
     return context
+
+
+@views.add
+@login_required
+def select_python_job(method, notebook, data):
+    if method == 'POST':
+        platform_id, job_id = data['job'].split('-')
+        notebook.current_job = SaagieJob.from_id(notebook, platform_id, job_id)
+        return views.render('update_python_job', notebook, data)
+    jobs_by_platform = []
+    for platform in notebook.get_platforms():
+        jobs = platform.get_jobs()
+        if jobs:
+            jobs_by_platform.append((platform,
+                                     list(sorted(jobs, reverse=True))))
+    return {'jobs_by_platform': jobs_by_platform,
+            'action': '/saagie?view=select_python_job'}
 
 
 @views.add

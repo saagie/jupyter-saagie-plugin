@@ -1,0 +1,29 @@
+{% extends 'modal_content.html' %}
+
+
+{% block content_tag %}form{% endblock %}
+{% block content_attrs %}method="POST" action="{{ action }}"{% endblock %}
+
+
+{% block body %}
+  <div class="form-group">
+    <label for="saagie-job">Select a job:</label>
+    <select id="saagie-job" name="job" class="form-control" required style="margin: 0;">
+      <option value="">──────────</option>
+      {% for platform, jobs in jobs_by_platform %}
+        <optgroup label="{{ platform.name }}">
+          {% for job in jobs %}
+            <option value="{{ platform.id }}-{{ job.id }}"{% if job == notebook.current_job %} selected{% endif %}>
+              {{- job.name -}}
+            </option>
+          {% endfor %}
+        </optgroup>
+      {% endfor %}
+    </select>
+  </div>
+{% endblock %}
+
+
+{% block footer %}
+  <button class="btn btn-primary" type="submit">Update job details</button>
+{% endblock %}

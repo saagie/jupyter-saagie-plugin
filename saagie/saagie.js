@@ -5,6 +5,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
   function Saagie () {
     this.createModal();
     this.createButtonsGroup();
+    this.currentTimeout = -1;
   }
 
   Saagie.prototype.addNotebookData = function (data) {
@@ -12,13 +13,22 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
     data.notebook_json = JSON.stringify(Jupyter.notebook.toJSON());
   };
 
-  Saagie.prototype.rawView = function (url, data, method) {
+  Saagie.prototype.rawView = function (url, data, method, showSpinner) {
     if (typeof data === 'undefined') {
       data = {};
     }
     this.addNotebookData(data);
     if (typeof method === 'undefined') {
       method = 'GET';
+    }
+    if (typeof showSpinner === 'undefined') {
+      showSpinner = true;
+    }
+    if (showSpinner) {
+      this.$modal.find('.modal-body').html(
+        '<div style="text-align: center;">' +
+        '<i class="fa fa-spinner fa-spin fa-3x"></i>' +
+        '</div>');
     }
     return $.ajax({
       method: method,
@@ -54,8 +64,8 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
 
       var url = $modalContent.data('auto-refresh-url');
       if (typeof url !== 'undefined') {
-        setTimeout(function () {
-          this.rawView(url);
+        this.currentTimeout = setTimeout(function () {
+          this.rawView(url, {}, 'GET', false);
         }.bind(this), 3000);
       }
 
@@ -92,6 +102,7 @@ define(['require', 'jquery', 'base/js/dialog', 'base/js/namespace'],
   } ;
 
   Saagie.prototype.onModalClose = function () {
+    clearTimeout(this.currentTimeout);
     Jupyter.keyboard_manager.enable();
   };
 

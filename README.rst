@@ -26,3 +26,20 @@ Uninstall
 
 | ``pip uninstall jupyter-saagie-plugin``
 | ``jupyter nbextension uninstall saagie --user``
+
+
+Modifying this extension
+------------------------
+
+In dev mode, you can use a Docker of Jupyter notebook and install this extension in it.
+
+First, run a Jupyter Docker in bash mode:
+
+| ``docker run -it --rm -p 8888:8888 -v [your_project_path]/jupyter-saagie-plugin/:/jupyter-saagie-plugin/ saagie/jupyter-python-nbk:latest /bin/bash``
+
+Then install the Jupyter extension in your Docker container:
+
+| ``cd /jupyter-saagie-plugin/``
+| ``python3 setup.py install``
+| ``cd /notebooks-dir``
+| ``/usr/local/bin/start-notebook.sh --NotebookApp.token=''``

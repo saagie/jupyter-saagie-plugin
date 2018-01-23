@@ -61,7 +61,7 @@ setup(
     author='Bertrand Bordage for Saagie',
     author_email='bordage.bertrand@gmail.com',
     url='https://github.com/saagie/jupyter-saagie-plugin',
-    description='Easily create a Saagie Python job from a local Jupyter notebook',
+    description='Easily create a Saagie Python job from a Jupyter notebook',
     long_description=open('README.rst').read(),
     classifiers=[
         'Development Status :: 5 - Production/Stable',

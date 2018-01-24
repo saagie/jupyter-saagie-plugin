@@ -67,8 +67,8 @@ class InstallCommand(install):
 setup(
     name='jupyter-saagie-plugin',
     version=__version__,
-    author='Bertrand Bordage for Saagie',
-    author_email='bordage.bertrand@gmail.com',
+    author='Saagie',
+    author_email='support@saagie.com',
     url='https://github.com/saagie/jupyter-saagie-plugin',
     description='Easily create a Saagie Python job from a Jupyter notebook',
     long_description=convert('README.md', 'rst'),

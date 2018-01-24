@@ -38,3 +38,20 @@ python3 setup.py install
 cd /notebooks-dir
 /usr/local/bin/start-notebook.sh --NotebookApp.token=''
 ```
+
+## Build and share
+In order to build this plugin, run the following command:
+```
+python setup.py sdist
+```
+This will generate a tar.gz archive in the `dist` directory.
+
+If you want to share it on Pypi, just install [twine](https://pypi.python.org/pypi/twine) and run:
+```
+twine upload dist/jupyter-saagie-plugin-x.x.x.tar.gz
+```
+
+But first, You can test your Pypi deployment on [TestPypi](https://testpypi.python.org/pypi) test environment. If so, just run:
+```
+twine upload --repository-url https://test.pypi.org/legacy/ dist/jupyter-saagie-plugin-x.x.x.tar.gz
+``` 

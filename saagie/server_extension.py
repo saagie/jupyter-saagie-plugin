@@ -14,8 +14,8 @@ env = Environment(
 )
 session = requests.Session()
 
-#FIXME: getting the environment variable doesn't seem to work...
 SAAGIE_ROOT_URL = os.environ.get("SAAGIE_ROOT_URL", None)
+SAAGIE_USERNAME = None
 PLATFORMS_URL = None
 LOGIN_URL = None
 JOBS_URL_PATTERN = None
@@ -254,22 +254,23 @@ def modal(method, notebook, data):
 
 
 def is_logged():
-    # response = session.get(PLATFORMS_URL, allow_redirects=False)
     if SAAGIE_ROOT_URL is None:
         return False
     else:
         response = session.get(SAAGIE_ROOT_URL + '/api/v1/user-current', allow_redirects=False)
         return response.status_code == 200
 
-def define_globals(saagie_root_url):
+def define_globals(saagie_root_url, saagie_username):
     if saagie_root_url is not None:
         global SAAGIE_ROOT_URL
+        global SAAGIE_USERNAME
         global PLATFORMS_URL
         global LOGIN_URL
         global JOBS_URL_PATTERN
         global JOB_URL_PATTERN
         global JOB_UPGRADE_URL_PATTERN
         global SCRIPT_UPLOAD_URL_PATTERN
+        SAAGIE_USERNAME = saagie_username
         SAAGIE_ROOT_URL = saagie_root_url.strip("/")
         PLATFORMS_URL = SAAGIE_ROOT_URL + '/api/v1/platform'
         LOGIN_URL = SAAGIE_ROOT_URL + '/login_check'
@@ -281,7 +282,7 @@ def define_globals(saagie_root_url):
 @views.add
 def login_form(method, notebook, data):
     if method == 'POST':
-        define_globals(data['saagie_root_url'])
+        define_globals(data['saagie_root_url'], data['username'])
 
         if LOGIN_URL is not None:
             session.post(LOGIN_URL,
@@ -289,17 +290,17 @@ def login_form(method, notebook, data):
                           '_password': data['password']})
         if is_logged():
             return views.render('capsule_type_chooser', notebook)
-        return {'error': 'Invalid URL, username or password.'}
+        return {'error': 'Invalid URL, username or password.', 'saagie_root_url': SAAGIE_ROOT_URL, 'username': SAAGIE_USERNAME or ''}
     if is_logged():
         return views.render('capsule_type_chooser', notebook)
-    return {'error': None}
+    return {'error': None, 'saagie_root_url': SAAGIE_ROOT_URL, 'username': SAAGIE_USERNAME or ''}
 
 
 def login_required(view):
     @wraps(view)
     def inner(method, notebook, data, *args, **kwargs):
         if not is_logged():
-            return views.render('login_form', notebook, {'saagie_root_url': SAAGIE_ROOT_URL})
+            return views.render('login_form', notebook)
         return view(method, notebook, data, *args, **kwargs)
     return inner
 

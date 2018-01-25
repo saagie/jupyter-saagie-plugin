@@ -36,7 +36,7 @@ Then install the Jupyter extension in your Docker container:
 cd /jupyter-saagie-plugin/
 python3 setup.py install
 cd /notebooks-dir
-/usr/local/bin/start-notebook.sh --NotebookApp.token=''
+/usr/local/bin/start-notebook.sh --NotebookApp.token='' --NotebookApp.password=''
 ```
 
 ## Build and share

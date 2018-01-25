@@ -293,7 +293,7 @@ def login_form(method, notebook, data):
         return {'error': 'Invalid URL, username or password.', 'saagie_root_url': SAAGIE_ROOT_URL, 'username': SAAGIE_USERNAME or ''}
     if is_logged():
         return views.render('capsule_type_chooser', notebook)
-    return {'error': None, 'saagie_root_url': SAAGIE_ROOT_URL, 'username': SAAGIE_USERNAME or ''}
+    return {'error': None, 'saagie_root_url': SAAGIE_ROOT_URL or '', 'username': SAAGIE_USERNAME or ''}
 
 
 def login_required(view):

@@ -2,6 +2,7 @@ from functools import wraps
 import json
 import os
 import traceback
+import validators
 
 from jinja2 import Environment, PackageLoader
 from notebook.utils import url_path_join
@@ -282,12 +283,20 @@ def define_globals(saagie_root_url, saagie_username):
 @views.add
 def login_form(method, notebook, data):
     if method == 'POST':
+        # check if the given Saagie URL is well formed
+        if not validators.url(data['saagie_root_url']):
+            return {'error': 'Invalid URL', 'saagie_root_url': data['saagie_root_url'] or '', 'username': data['username'] or ''}
+
         define_globals(data['saagie_root_url'], data['username'])
 
         if LOGIN_URL is not None:
-            session.post(LOGIN_URL,
+            try:
+                session.post(LOGIN_URL,
                          {'_username': data['username'],
                           '_password': data['password']})
+            except (requests.ConnectionError, requests.RequestException, requests.HTTPError, requests.TooManyRedirects, requests.Timeout) as err:
+                print ('Error while trying to connect to Saagie: ', err)
+                return {'error': 'Connection error', 'saagie_root_url': SAAGIE_ROOT_URL, 'username': SAAGIE_USERNAME or ''}
         if is_logged():
             return views.render('capsule_type_chooser', notebook)
         return {'error': 'Invalid URL, username or password.', 'saagie_root_url': SAAGIE_ROOT_URL, 'username': SAAGIE_USERNAME or ''}

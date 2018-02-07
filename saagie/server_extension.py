@@ -2,6 +2,7 @@ from functools import wraps
 import json
 import os
 import traceback
+import validators
 
 from jinja2 import Environment, PackageLoader
 from notebook.utils import url_path_join
@@ -14,14 +15,14 @@ env = Environment(
 )
 session = requests.Session()
 
-
-SAAGIE_ROOT_URL = 'https://manager.prod.saagie.io'
-PLATFORMS_URL = SAAGIE_ROOT_URL + '/api-internal/v1/platform'
-LOGIN_URL = SAAGIE_ROOT_URL + '/login_check'
-JOBS_URL_PATTERN = PLATFORMS_URL + '/%s/job'
-JOB_URL_PATTERN = JOBS_URL_PATTERN + '/%s'
-JOB_UPGRADE_URL_PATTERN = JOBS_URL_PATTERN + '/%s/version'
-SCRIPT_UPLOAD_URL_PATTERN = JOBS_URL_PATTERN + '/upload'
+SAAGIE_ROOT_URL = os.environ.get("SAAGIE_ROOT_URL", None)
+SAAGIE_USERNAME = None
+PLATFORMS_URL = None
+LOGIN_URL = None
+JOBS_URL_PATTERN = None
+JOB_URL_PATTERN = None
+JOB_UPGRADE_URL_PATTERN = None
+SCRIPT_UPLOAD_URL_PATTERN = None
 
 
 def get_absolute_saagie_url(saagie_url):
@@ -128,7 +129,7 @@ class SaagieJob:
         if run_data is None or run_data['status'] not in ('SUCCESS', 'FAILED'):
             return
         run_data = session.get(
-            get_absolute_saagie_url('/api-internal/v1/jobtask/%s'
+            get_absolute_saagie_url('/api/v1/jobtask/%s'
                                     % run_data['id'])).json()
         self.last_run = SaagieJobRun(self, run_data)
 
@@ -254,22 +255,54 @@ def modal(method, notebook, data):
 
 
 def is_logged():
-    response = session.get(PLATFORMS_URL, allow_redirects=False)
-    return response.status_code == 200
+    if SAAGIE_ROOT_URL is None:
+        return False
+    else:
+        response = session.get(SAAGIE_ROOT_URL + '/api/v1/user-current', allow_redirects=False)
+        return response.status_code == 200
 
+def define_globals(saagie_root_url, saagie_username):
+    if saagie_root_url is not None:
+        global SAAGIE_ROOT_URL
+        global SAAGIE_USERNAME
+        global PLATFORMS_URL
+        global LOGIN_URL
+        global JOBS_URL_PATTERN
+        global JOB_URL_PATTERN
+        global JOB_UPGRADE_URL_PATTERN
+        global SCRIPT_UPLOAD_URL_PATTERN
+        SAAGIE_USERNAME = saagie_username
+        SAAGIE_ROOT_URL = saagie_root_url.strip("/")
+        PLATFORMS_URL = SAAGIE_ROOT_URL + '/api/v1/platform'
+        LOGIN_URL = SAAGIE_ROOT_URL + '/login_check'
+        JOBS_URL_PATTERN = PLATFORMS_URL + '/%s/job'
+        JOB_URL_PATTERN = JOBS_URL_PATTERN + '/%s'
+        JOB_UPGRADE_URL_PATTERN = JOBS_URL_PATTERN + '/%s/version'
+        SCRIPT_UPLOAD_URL_PATTERN = JOBS_URL_PATTERN + '/upload'
 
 @views.add
 def login_form(method, notebook, data):
     if method == 'POST':
-        session.post(LOGIN_URL,
-                     {'_username': data['username'],
-                      '_password': data['password']})
+        # check if the given Saagie URL is well formed
+        if not validators.url(data['saagie_root_url']):
+            return {'error': 'Invalid URL', 'saagie_root_url': data['saagie_root_url'] or '', 'username': data['username'] or ''}
+
+        define_globals(data['saagie_root_url'], data['username'])
+
+        if LOGIN_URL is not None:
+            try:
+                session.post(LOGIN_URL,
+                         {'_username': data['username'],
+                          '_password': data['password']})
+            except (requests.ConnectionError, requests.RequestException, requests.HTTPError, requests.TooManyRedirects, requests.Timeout) as err:
+                print ('Error while trying to connect to Saagie: ', err)
+                return {'error': 'Connection error', 'saagie_root_url': SAAGIE_ROOT_URL, 'username': SAAGIE_USERNAME or ''}
         if is_logged():
             return views.render('capsule_type_chooser', notebook)
-        return {'error': 'Invalid username or password.'}
+        return {'error': 'Invalid URL, username or password.', 'saagie_root_url': SAAGIE_ROOT_URL, 'username': SAAGIE_USERNAME or ''}
     if is_logged():
         return views.render('capsule_type_chooser', notebook)
-    return {'error': None}
+    return {'error': None, 'saagie_root_url': SAAGIE_ROOT_URL or '', 'username': SAAGIE_USERNAME or ''}
 
 
 def login_required(view):
@@ -289,7 +322,7 @@ def capsule_type_chooser(method, notebook, data):
 
 def get_job_form(method, notebook, data):
     context = {'platforms': notebook.get_platforms()}
-    context['values'] = ({} if notebook.current_job is None
+    context['values'] = ({'current': {'options': {}}} if notebook.current_job is None
                          else notebook.current_job.data)
     return context
 
@@ -304,6 +337,8 @@ def create_job_base_data(data):
             'cpu': data['cpu'],
             'disk': data['disk'],
             'memory': data['ram'],
+            'isInternalSubDomain': False,
+            'isInternalPort': False,
             'options': {}
         }
     }
@@ -322,13 +357,19 @@ def upload_python_script(notebook, data):
 def python_job_form(method, notebook, data):
     if method == 'POST':
         platform_id = data['saagie-platform']
+
         job_data = create_job_base_data(data)
         job_data['capsule_code'] = 'python'
+        job_data['always_email'] = False
+        job_data['manual'] = True
+        job_data['retry'] = ''
+
         current = job_data['current']
         current['options']['language_version'] = data['language-version']
         current['releaseNote'] = data['release-note']
         current['template'] = data['shell-command']
         current['file'] = upload_python_script(notebook, data)
+
         new_job_data = session.post(JOBS_URL_PATTERN % platform_id,
                                     json=job_data).json()
         job = SaagieJob(notebook, new_job_data)
@@ -354,6 +395,7 @@ def update_python_job(method, notebook, data):
         current['releaseNote'] = data['release-note']
         current['template'] = data['shell-command']
         current['file'] = upload_python_script(notebook, data)
+
         session.post(JOB_UPGRADE_URL_PATTERN % (platform_id, job.id),
                      json={'current': current})
         job.last_run = None

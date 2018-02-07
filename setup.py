@@ -6,6 +6,15 @@ from setuptools.command.install import install
 
 from saagie import __version__
 
+try:
+    from pypandoc import convert
+except ImportError:
+    import io
+
+    def convert(filename, fmt):
+        with io.open(filename, encoding='utf-8') as fd:
+            return fd.read()
+
 CURRENT_PATH = os.path.abspath(os.path.dirname(__file__))
 EXTENSION_PATH = os.path.join(CURRENT_PATH, 'saagie')
 
@@ -58,11 +67,11 @@ class InstallCommand(install):
 setup(
     name='jupyter-saagie-plugin',
     version=__version__,
-    author='Bertrand Bordage for Saagie',
-    author_email='bordage.bertrand@gmail.com',
+    author='Saagie',
+    author_email='support@saagie.com',
     url='https://github.com/saagie/jupyter-saagie-plugin',
-    description='Easily create a Saagie Python job from a local Jupyter notebook',
-    long_description=open('README.rst').read(),
+    description='Easily create a Saagie Python job from a Jupyter notebook',
+    long_description=convert('README.md', 'rst'),
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Framework :: Django',

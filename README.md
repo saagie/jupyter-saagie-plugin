@@ -46,7 +46,7 @@ python setup.py sdist
 ```
 This will generate a tar.gz archive in the `dist` directory.
 
-If you want to share it on Pypi, just install [twine](https://pypi.python.org/pypi/twine) and run:
+If you want to share it on Pypi, just install [twine](https://pypi.python.org/pypi/twine) (with `pip install twine`) and run:
 ```
 twine upload dist/jupyter-saagie-plugin-x.x.x.tar.gz
 ```

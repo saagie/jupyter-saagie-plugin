@@ -337,6 +337,8 @@ def create_job_base_data(data):
             'cpu': data['cpu'],
             'disk': data['disk'],
             'memory': data['ram'],
+            'isInternalSubDomain': False,
+            'isInternalPort': False,
             'options': {}
         }
     }
@@ -355,8 +357,13 @@ def upload_python_script(notebook, data):
 def python_job_form(method, notebook, data):
     if method == 'POST':
         platform_id = data['saagie-platform']
+
         job_data = create_job_base_data(data)
         job_data['capsule_code'] = 'python'
+        job_data['always_email'] = False
+        job_data['manual'] = True
+        job_data['retry'] = ''
+
         current = job_data['current']
         current['options']['language_version'] = data['language-version']
         current['releaseNote'] = data['release-note']
@@ -388,6 +395,7 @@ def update_python_job(method, notebook, data):
         current['releaseNote'] = data['release-note']
         current['template'] = data['shell-command']
         current['file'] = upload_python_script(notebook, data)
+
         session.post(JOB_UPGRADE_URL_PATTERN % (platform_id, job.id),
                      json={'current': current})
         job.last_run = None

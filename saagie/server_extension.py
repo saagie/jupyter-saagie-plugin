@@ -467,6 +467,15 @@ def starting_job(method, notebook, data):
 def started_job(method, notebook, data):
     return {'job': notebook.current_job, 'username': SAAGIE_USERNAME}
 
+@views.add
+def logout(method, notebook, data):
+    global SAAGIE_BASIC_AUTH_TOKEN
+    global SAAGIE_ROOT_URL
+    global SAAGIE_USERNAME
+    SAAGIE_BASIC_AUTH_TOKEN = None
+    SAAGIE_ROOT_URL = None
+    SAAGIE_USERNAME = None
+    return {}
 
 def load_jupyter_server_extension(nb_app):
     web_app = nb_app.web_app

@@ -8,17 +8,17 @@ from jinja2 import Environment, PackageLoader
 from notebook.utils import url_path_join
 from notebook.base.handlers import IPythonHandler
 import requests
+from requests.auth import HTTPBasicAuth
 
 
 env = Environment(
     loader=PackageLoader('saagie', 'jinja2'),
 )
-session = requests.Session()
 
 SAAGIE_ROOT_URL = os.environ.get("SAAGIE_ROOT_URL", None)
 SAAGIE_USERNAME = None
 PLATFORMS_URL = None
-LOGIN_URL = None
+SAAGIE_BASIC_AUTH_TOKEN = None
 JOBS_URL_PATTERN = None
 JOB_URL_PATTERN = None
 JOB_UPGRADE_URL_PATTERN = None
@@ -92,7 +92,7 @@ class SaagieJob:
     def from_id(cls, notebook, platform_id, job_id):
         return SaagieJob(
             notebook,
-            session.get(JOB_URL_PATTERN % (platform_id, job_id)).json())
+            requests.get(JOB_URL_PATTERN % (platform_id, job_id), auth=SAAGIE_BASIC_AUTH_TOKEN).json())
 
     def __init__(self, notebook, job_data):
         self.notebook = notebook
@@ -124,13 +124,13 @@ class SaagieJob:
         return self.last_run is not None
 
     def fetch_logs(self):
-        job_data = session.get(self.url).json()
+        job_data = requests.get(self.url, auth=SAAGIE_BASIC_AUTH_TOKEN).json()
         run_data = job_data.get('last_instance')
         if run_data is None or run_data['status'] not in ('SUCCESS', 'FAILED'):
             return
-        run_data = session.get(
+        run_data = requests.get(
             get_absolute_saagie_url('/api/v1/jobtask/%s'
-                                    % run_data['id'])).json()
+                                    % run_data['id']), auth=SAAGIE_BASIC_AUTH_TOKEN).json()
         self.last_run = SaagieJobRun(self, run_data)
 
     @property
@@ -168,7 +168,7 @@ class SaagiePlatform:
         if not self.is_supported:
             return []
 
-        jobs_data = session.get(JOBS_URL_PATTERN % self.id).json()
+        jobs_data = requests.get(JOBS_URL_PATTERN % self.id, auth=SAAGIE_BASIC_AUTH_TOKEN).json()
         return [SaagieJob(self.notebook, job_data) for job_data in jobs_data
                 if job_data['category'] == 'processing' and
                 job_data['capsule_code'] in self.SUPPORTED_CAPSULE_TYPES]
@@ -223,7 +223,7 @@ class Notebook:
 
     def get_platforms(self):
         return [SaagiePlatform(self, platform_data)
-                for platform_data in session.get(PLATFORMS_URL).json()]
+                for platform_data in requests.get(PLATFORMS_URL, auth=SAAGIE_BASIC_AUTH_TOKEN).json()]
 
 
 class ViewsCollection(dict):
@@ -253,20 +253,36 @@ views = ViewsCollection()
 def modal(method, notebook, data):
     return {}
 
+def clear_basic_auth_token():
+    global SAAGIE_BASIC_AUTH_TOKEN
+    SAAGIE_BASIC_AUTH_TOKEN = None
+
+# Init an empty Basic Auth token on first launch
+clear_basic_auth_token()
 
 def is_logged():
-    if SAAGIE_ROOT_URL is None:
+    if SAAGIE_ROOT_URL is None or SAAGIE_BASIC_AUTH_TOKEN is None:
         return False
     else:
-        response = session.get(SAAGIE_ROOT_URL + '/api/v1/user-current', allow_redirects=False)
-        return response.status_code == 200
+        # Check if Basic token is still valid
+        is_logged_in = False
+        try:
+            response = requests.get(SAAGIE_ROOT_URL + '/api/v1/user-current', auth=SAAGIE_BASIC_AUTH_TOKEN, allow_redirects=False)
+            is_logged_in = response.ok
+        except (requests.ConnectionError, requests.RequestException, requests.HTTPError, requests.Timeout) as err:
+            print ('Error while trying to connect to Saagie: ', err)
+
+        if is_logged_in is not True:
+            # Remove Basic Auth token from globals. It will force a new login phase.
+            clear_basic_auth_token()
+
+        return is_logged_in
 
 def define_globals(saagie_root_url, saagie_username):
     if saagie_root_url is not None:
         global SAAGIE_ROOT_URL
         global SAAGIE_USERNAME
         global PLATFORMS_URL
-        global LOGIN_URL
         global JOBS_URL_PATTERN
         global JOB_URL_PATTERN
         global JOB_UPGRADE_URL_PATTERN
@@ -274,7 +290,6 @@ def define_globals(saagie_root_url, saagie_username):
         SAAGIE_USERNAME = saagie_username
         SAAGIE_ROOT_URL = saagie_root_url.strip("/")
         PLATFORMS_URL = SAAGIE_ROOT_URL + '/api/v1/platform'
-        LOGIN_URL = SAAGIE_ROOT_URL + '/login_check'
         JOBS_URL_PATTERN = PLATFORMS_URL + '/%s/job'
         JOB_URL_PATTERN = JOBS_URL_PATTERN + '/%s'
         JOB_UPGRADE_URL_PATTERN = JOBS_URL_PATTERN + '/%s/version'
@@ -289,16 +304,22 @@ def login_form(method, notebook, data):
 
         define_globals(data['saagie_root_url'], data['username'])
 
-        if LOGIN_URL is not None:
-            try:
-                session.post(LOGIN_URL,
-                         {'_username': data['username'],
-                          '_password': data['password']})
-            except (requests.ConnectionError, requests.RequestException, requests.HTTPError, requests.TooManyRedirects, requests.Timeout) as err:
-                print ('Error while trying to connect to Saagie: ', err)
-                return {'error': 'Connection error', 'saagie_root_url': SAAGIE_ROOT_URL, 'username': SAAGIE_USERNAME or ''}
-        if is_logged():
+        try:
+            basic_token = HTTPBasicAuth(data['username'], data['password'])
+            current_user_response = requests.get(SAAGIE_ROOT_URL + '/api/v1/user-current', auth=basic_token, allow_redirects=False)
+
+            if current_user_response.ok:
+                # Login succeeded, keep the basic token for future API calls
+                global SAAGIE_BASIC_AUTH_TOKEN
+                SAAGIE_BASIC_AUTH_TOKEN = basic_token
+
+        except (requests.ConnectionError, requests.RequestException, requests.HTTPError, requests.Timeout) as err:
+            print ('Error while trying to connect to Saagie: ', err)
+            return {'error': 'Connection error', 'saagie_root_url': SAAGIE_ROOT_URL, 'username': SAAGIE_USERNAME or ''}
+
+        if SAAGIE_BASIC_AUTH_TOKEN is not None:
             return views.render('capsule_type_chooser', notebook)
+
         return {'error': 'Invalid URL, username or password.', 'saagie_root_url': SAAGIE_ROOT_URL, 'username': SAAGIE_USERNAME or ''}
     if is_logged():
         return views.render('capsule_type_chooser', notebook)
@@ -317,7 +338,7 @@ def login_required(view):
 @views.add
 @login_required
 def capsule_type_chooser(method, notebook, data):
-    return {}
+    return {'username': SAAGIE_USERNAME}
 
 
 def get_job_form(method, notebook, data):
@@ -347,9 +368,9 @@ def create_job_base_data(data):
 def upload_python_script(notebook, data):
     code = notebook.get_code(map(int, data.get('code-lines', '').split('|')))
     files = {'file': (data['job-name'] + '.py', code)}
-    return session.post(
+    return requests.post(
         SCRIPT_UPLOAD_URL_PATTERN % data['saagie-platform'],
-        files=files).json()['fileName']
+        files=files, auth=SAAGIE_BASIC_AUTH_TOKEN).json()['fileName']
 
 
 @views.add
@@ -370,14 +391,15 @@ def python_job_form(method, notebook, data):
         current['template'] = data['shell-command']
         current['file'] = upload_python_script(notebook, data)
 
-        new_job_data = session.post(JOBS_URL_PATTERN % platform_id,
-                                    json=job_data).json()
+        new_job_data = requests.post(JOBS_URL_PATTERN % platform_id,
+                                    json=job_data, auth=SAAGIE_BASIC_AUTH_TOKEN).json()
         job = SaagieJob(notebook, new_job_data)
         job.set_as_current()
         return views.render('starting_job', notebook, {'job': job})
 
     context = get_job_form(method, notebook, data)
     context['action'] = '/saagie?view=python_job_form'
+    context['username'] = SAAGIE_USERNAME
     return context
 
 
@@ -396,13 +418,14 @@ def update_python_job(method, notebook, data):
         current['template'] = data['shell-command']
         current['file'] = upload_python_script(notebook, data)
 
-        session.post(JOB_UPGRADE_URL_PATTERN % (platform_id, job.id),
-                     json={'current': current})
+        requests.post(JOB_UPGRADE_URL_PATTERN % (platform_id, job.id),
+                     json={'current': current}, auth=SAAGIE_BASIC_AUTH_TOKEN)
         job.last_run = None
         return views.render('starting_job', notebook, {'job': job})
 
     context = get_job_form(method, notebook, data)
     context['action'] = '/saagie?view=update_python_job'
+    context['username'] = SAAGIE_USERNAME
     return context
 
 
@@ -420,13 +443,13 @@ def select_python_job(method, notebook, data):
             jobs_by_platform.append((platform,
                                      list(sorted(jobs, reverse=True))))
     return {'jobs_by_platform': jobs_by_platform,
-            'action': '/saagie?view=select_python_job'}
+            'action': '/saagie?view=select_python_job', 'username': SAAGIE_USERNAME}
 
 
 @views.add
 @login_required
 def unsupported_kernel(method, notebook, data):
-    return {}
+    return {'username': SAAGIE_USERNAME}
 
 
 @views.add
@@ -436,14 +459,23 @@ def starting_job(method, notebook, data):
     job.fetch_logs()
     if job.is_started:
         return views.render('started_job', notebook, {'job': job})
-    return {'job': job}
+    return {'job': job, 'username': SAAGIE_USERNAME}
 
 
 @views.add
 @login_required
 def started_job(method, notebook, data):
-    return {'job': notebook.current_job}
+    return {'job': notebook.current_job, 'username': SAAGIE_USERNAME}
 
+@views.add
+def logout(method, notebook, data):
+    global SAAGIE_BASIC_AUTH_TOKEN
+    global SAAGIE_ROOT_URL
+    global SAAGIE_USERNAME
+    SAAGIE_BASIC_AUTH_TOKEN = None
+    SAAGIE_ROOT_URL = None
+    SAAGIE_USERNAME = None
+    return {}
 
 def load_jupyter_server_extension(nb_app):
     web_app = nb_app.web_app

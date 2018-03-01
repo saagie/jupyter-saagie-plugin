@@ -27,9 +27,10 @@ In dev mode, you can use a Docker of Jupyter notebook and install this extension
 First, run a Jupyter Docker in bash mode:
 
 ```
-docker run -it --rm -p 8888:8888 -v [your_project_path]/jupyter-saagie-plugin/:/jupyter-saagie-plugin/ [--env SAAGIE_ROOT_URL="https://xxx-manager.prod.saagie.io/"] saagie/jupyter-python-nbk:latest /bin/bash
+docker run -it --rm -p 8888:8888 --user root -e GRANT_SUDO=yes -v [your_project_path]/jupyter-saagie-plugin/:/jupyter-saagie-plugin/ [--env SAAGIE_ROOT_URL="https://xxx-manager.prod.saagie.io/"] saagie/jupyter-python-nbk:latest /bin/bash
 ```
 _(Seting up the `SAAGIE_ROOT_URL` environment variable is optional)_
+
 
 Then install the Jupyter extension in your Docker container:
 ```
